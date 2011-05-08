@@ -1,0 +1,8 @@
+.DS_Store
+*.swp
+*~
+._*
+*.pyc
+tld_tab.h
+tld_stats.txt
+tlds-alpha-by-domain.txt
