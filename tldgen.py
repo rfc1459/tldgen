@@ -53,8 +53,8 @@ typedef struct _dfa_state
     /* State number is implicitly defined by order in state array.
      * Also, initial state is always state 0.
      */
-     unsigned char flags;                           /* TLD flags (0 if state is not final) */
-     unsigned short transitions[TRANS_TBL_SIZE];    /* Transition table (indexed by token) */
+     unsigned char flags;                   /* TLD flags (0 if state is not final) */
+     short transitions[TRANS_TBL_SIZE];     /* Transition table (indexed by token) */
 } dfa_state;
 
 /* Mapping function from character to token */
@@ -311,7 +311,7 @@ if __name__ == '__main__':
     # Generate statistics
     with open('tld_stats.txt', 'w') as stats_out:
         print >>stats_out, "Language accepted by this DFA:"
-        for l in dfa.get_language():
+        for l in sorted(dfa.get_language()):
             print >>stats_out, "    %s" % l
         dfa.print_states(stats_out)
         stats_out.flush()

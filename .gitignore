@@ -6,3 +6,5 @@
 tld_tab.h
 tld_stats.txt
 tlds-alpha-by-domain.txt
+tld_test
+*.dSYM
