@@ -73,7 +73,7 @@ static dfa_state tld_dfa[] = {
 %(dfa_state_entries)s
 };"""
 # Template for token enum entries
-C_ENUM_TMPL = "    %(enum_name)s,"
+C_ENUM_TMPL = "    %(enum_name)s = %(enum_value)d"
 
 # Template for token mapping statements
 C_MAP_STATEMENT_TMPL = """    case '%(token)c':
@@ -281,7 +281,7 @@ def build_c_header(dfa):
     }
     tmap = generate_token_map(dfa.get_language())
     # Create enum string
-    template_data['token_enum'] = '\n'.join([C_ENUM_TMPL % {'enum_name': token[2]} for token in tmap])
+    template_data['token_enum'] = ',\n'.join([C_ENUM_TMPL % {'enum_name': token[2], 'enum_value': token[1]} for token in tmap])
     # Define transition table size
     template_data['trans_tbl_size'] = len(tmap)
     # Assemble token mapping statements
