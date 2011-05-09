@@ -7,6 +7,9 @@
 
 __all__ = ['DFA', 'Trie', 'State']
 
+class AlreadyFinalizedError(Exception):
+    pass
+
 class Token(object):
     def __init__(self, sym, index, prefix='TLD_TOK_'):
         self.sym = sym
@@ -44,6 +47,9 @@ class State(object):
         for (sym, next_state) in self.transitions.items():
             s.append('  %s -> %d\n' % (sym, next_state.statenum))
         return ''.join(s)
+
+    def __repr__(self):
+        return '<State(%r, is_start=%r, is_final=%r)>' % (self.statenum, self.is_start, self.is_final)
 
 class DFA(object):
     """A Deterministic Finite Automaton"""
@@ -130,9 +136,12 @@ class Trie(DFA):
     def __init__(self):
         DFA.__init__(self)
         self.statenum = 0
+        self.__finalized = False
 
     def add_string(self, s):
         """Add a new string to the Trie"""
+        if self.__finalized:
+            raise AlreadyFinalizedError()
         # Create start state if necessary
         if self.start_state is None:
             self.add_state(self.statenum, start=True)
@@ -159,6 +168,51 @@ class Trie(DFA):
 
         # State for last symbol is final
         curr.is_final = True
+
+    def __finalize_visit_fn(self, current, visited, dangling):
+        """Visit function for state optimization"""
+        if current not in visited:
+            visited.add(current)
+            for (sym, state) in current.transitions.items():
+                if state in visited:
+                    continue
+                elif state.is_final and len(state.transitions) == 0:
+                    dangling.add(state)
+                    visited.add(state)
+                    current.transitions[sym] = self.__final_state
+                else:
+                    self.__finalize_visit_fn(state, visited, dangling)
+
+    def __renumber_visit_fn(self, current, visited):
+        if current not in visited:
+            current.statenum = self.statenum
+            self.statenum_map[self.statenum] = current
+            self.statenum += 1
+            visited.add(current)
+        for next_state in current.transitions.values():
+            if next_state not in visited:
+                self.__renumber_visit_fn(next_state, visited)
+
+    def finalize(self):
+        """Coalesce all final states without into a single one and renumber all states"""
+        if self.__finalized:
+            return
+        assert self.is_valid(), "Internal error: Trie.finalized cannot be called on an invalid DFA"
+        # Synthesize final state
+        self.__final_state = self.add_state(self.statenum, final=True)
+        # Recursively visit all states, replace final states without outgoing transitions with
+        # synthetic final state and collect them in a set
+        dangling = set()
+        self.__finalize_visit_fn(self.start_state, set([self.__final_state]), dangling)
+        # Remove dangling states from state set
+        self.states.difference_update(dangling)
+        # Reverify validity
+        assert self.is_valid(), "Internal error: optimized Trie has unreachable states"
+        # Renumber all states
+        self.statenum = 0
+        self.statenum_map = {}
+        self.__renumber_visit_fn(self.start_state, set())
+        self.__finalized = True
 
     def get_language(self):
         """Return a list of strings accepted by this trie"""

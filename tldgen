@@ -94,6 +94,7 @@ def generate_dfa(tlds):
     dfa = Trie()
     for tld in tlds:
         dfa.add_string(tld)
+    dfa.finalize()
     return dfa
 
 def fill_state_template(state):
@@ -132,9 +133,20 @@ if __name__ == '__main__':
         dfa.print_states(stats_out)
         stats_out.flush()
 
-    # Ensure we're going to build a valid DFA
-    if not dfa.is_valid():
-        print >>sys.stderr, "DFA did not pass validation!\n\nPlease open an issue on https://github.com/rfc1459/tldgen\nand attach both tld_stats.txt and tlds-alpha-by-domain.txt"
+    # Consistency check
+    tldset = frozenset(tlds)
+    dfaset = frozenset(dfa.get_language())
+    not_accepted = tldset - dfaset
+    invalid_accepts = dfaset - tldset
+    if len(not_accepted) != 0 or len(invalid_accepts) != 0:
+        print >>sys.stderr, "Fatal error: discrepancy between TLD list and DFA language."
+        if len(not_accepted) > 0:
+            print >>sys.stderr, "The following TLDs are VALID but not accepted by the DFA:"
+            print >>sys.stderr, "%s\n" % '\n'.join(['  %s' % tld for tld in sorted(not_accepted)])
+        if len(invalid_accepts) > 0:
+            print >>sys.stderr, "The following TLDs are INVALID but would be accepted by the DFA:"
+            print >>sys.stderr, "%s\n" % '\n'.join(['  %s' % tld for tld in sorted(invalid_accepts)])
+        print >>sys.stderr, "Please file an issue on https://github.com/rfc1459/tldgen/ and attach tld_stats.txt and tlds-alpha-by-domain.txt"
         sys.exit(1)
 
     c_header = build_c_header(dfa)
