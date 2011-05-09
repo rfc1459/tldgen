@@ -14,7 +14,7 @@ class Token(object):
     def __init__(self, sym, index, prefix='TLD_TOK_'):
         self.sym = sym
         self.index = index
-        self.prefix = 'TLD_TOK_'
+        self.prefix = prefix
 
     def __str__(self):
         return '%s%d' % (self.prefix, self.index)
