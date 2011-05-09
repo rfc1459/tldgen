@@ -7,6 +7,7 @@
 # for more details.
 
 from __future__ import with_statement
+import sys
 
 # Acceptance states (and flags)
 ACCEPT_MAIL = 1
@@ -164,6 +165,33 @@ class DFA(object):
 
         return curr.is_final
 
+    def is_valid(self):
+        """Validate this DFA.
+        Requirements:
+         * start state MUST be unique;
+         * one or more final states;
+         * all states MUST be reachable from start state.
+        """
+        if self.start_state is None:
+            return False
+
+        final_found = any([state.is_final for state in self.states])
+        if not final_found:
+            return False
+
+        def visit_state(current, visited):
+            if current not in visited:
+                visited.add(current)
+            for next_states in current.transitions.values():
+                for next_state in next_states:
+                    if next_state not in visited:
+                        visit_state(next_state, visited)
+
+        visited = set()
+        visit_state(self.start_state, visited)
+
+        return len(visited) == len(self.states)
+
     def print_states(self, fd):
         print >>fd, '\nStates of DFA:\n'
         for statenum in sorted(self.statenum_map.keys()):
@@ -298,13 +326,6 @@ def build_c_header(dfa):
 if __name__ == '__main__':
     tlds = load_tld_list()
     dfa = generate_dfa(tlds)
-    c_header = build_c_header(dfa)
-
-    # Write C header to file
-    with open('tld_tab.h', 'w') as chdr_out:
-        chdr_out.write(c_header)
-        chdr_out.write('\n')
-        chdr_out.flush()
 
     # Generate statistics
     with open('tld_stats.txt', 'w') as stats_out:
@@ -313,3 +334,16 @@ if __name__ == '__main__':
             print >>stats_out, "    %s" % l
         dfa.print_states(stats_out)
         stats_out.flush()
+
+    # Ensure we're going to build a valid DFA
+    if not dfa.is_valid():
+        print >>sys.stderr, "DFA did not pass validation!\n\nPlease open an issue on https://github.com/rfc1459/tldgen\nand attach both tld_stats.txt and tlds-alpha-by-domain.txt"
+        sys.exit(1)
+
+    c_header = build_c_header(dfa)
+
+    # Write C header to file
+    with open('tld_tab.h', 'w') as chdr_out:
+        chdr_out.write(c_header)
+        chdr_out.write('\n')
+        chdr_out.flush()
