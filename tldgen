@@ -10,18 +10,6 @@ from __future__ import with_statement
 import sys
 from fsm import Trie
 
-# Acceptance states (and flags)
-ACCEPT_MAIL = 1
-ACCEPT_HOST = 2
-ACCEPT_ALL  = ACCEPT_MAIL | ACCEPT_HOST
-
-# pseudo-TLDs used internally by some Azzurra ircds
-PSEUDO_TLDS = (
-    ('fw',  ACCEPT_HOST),
-    ('lan', ACCEPT_ALL ),
-    ('thc', ACCEPT_HOST),
-)
-
 # Template for the header file itself
 C_HDR_TMPL = """/*
  * Azzurra IRC Services (C) 2001-2011 Azzurra IRC Network
@@ -35,9 +23,6 @@ C_HDR_TMPL = """/*
 #ifndef I_HAVE_A_VERY_GOOD_REASON_TO_INCLUDE_TLD_TAB_H
 #error "*NEVER* *EVER* include this file unless you know what you're doing"
 #endif /* I_HAVE_A_VERY_GOOD_REASON_TO_INCLUDE_TLD_TAB_H */
-
-#define ACCEPT_MAIL %(accept_mail_val)d
-#define ACCEPT_HOST %(accept_host_val)d
 
 /* Token values */
 enum
@@ -54,7 +39,7 @@ typedef struct _dfa_state
     /* State number is implicitly defined by order in state array.
      * Also, initial state is always state 0.
      */
-     unsigned char flags;                   /* TLD flags (0 if state is not final) */
+     unsigned final:1;                      /* Is this state final? */
      short transitions[TRANS_TBL_SIZE];     /* Transition table (indexed by token) */
 } dfa_state;
 
@@ -82,7 +67,7 @@ C_MAP_STATEMENT_TMPL = """    case '%(token)c':
         return %(enum_name)s;"""
 
 # Template for state table entries
-C_DFA_ENTRY_TMPL = "    {%(flags)d, %(trans_tbl)s}"
+C_DFA_ENTRY_TMPL = "    {%(final)d, %(trans_tbl)s}"
 
 def load_tld_list(name='tlds-alpha-by-domain.txt'):
     """Parse IANA TLD file"""
@@ -94,14 +79,13 @@ def load_tld_list(name='tlds-alpha-by-domain.txt'):
             if len(l) == 0 or l[0] == '#':
                 continue
             # Filter out IDNs
-            if l.startswith('XN--'):
+            l = l.lower()
+            if l.startswith('xn--'):
                 continue
-            tlds.append((l.lower(), ACCEPT_ALL))
+            tlds.append(l.lower())
 
-    # Append local TLDs
-    tlds.extend(PSEUDO_TLDS)
     # Sort the resulting list
-    tlds.sort(lambda x, y: cmp(x[0], y[0]))
+    tlds.sort()
     # And return it
     return tlds
 
@@ -109,7 +93,7 @@ def generate_dfa(tlds):
     """Generate a DFA from given TLD list"""
     dfa = Trie()
     for tld in tlds:
-        dfa.add_string(tld[0], tld[1])
+        dfa.add_string(tld)
     return dfa
 
 def generate_token_map(lang):
@@ -126,7 +110,7 @@ def generate_token_map(lang):
 def generate_state(token_map, state):
     # Encode state flags
     template_data = {}
-    template_data['flags'] = state.fval if state.is_final and state.fval is not None else 0
+    template_data['final'] = state.is_final
     # Encode transitions list - start with all transitions being non-valid
     trans_list = [-1] * len(token_map)
     for (sym, next_state) in state.transitions.items():
@@ -137,10 +121,7 @@ def generate_state(token_map, state):
 
 def build_c_header(dfa):
     """Build the header file from a given DFA instance"""
-    template_data = {
-        'accept_mail_val'       : ACCEPT_MAIL,
-        'accept_host_val'       : ACCEPT_HOST,
-    }
+    template_data = {}
     tmap = generate_token_map(dfa.get_language())
     # Create enum string
     template_data['token_enum'] = ',\n'.join([C_ENUM_TMPL % {'enum_name': token[2], 'enum_value': token[1]} for token in tmap])

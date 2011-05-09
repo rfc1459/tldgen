@@ -9,11 +9,10 @@ __all__ = ['DFA', 'Trie', 'State']
 
 class State(object):
     """A DFA state"""
-    def __init__(self, statenum, is_start=False, is_final=False, fval=None):
+    def __init__(self, statenum, is_start=False, is_final=False):
         self.statenum = statenum
         self.is_start = is_start
         self.is_final = is_final
-        self.fval = fval
         self.transitions = {}
 
     def add_transition(self, symbol, state):
@@ -27,7 +26,7 @@ class State(object):
         if self.is_start:
             s.append(' start state\n')
         elif self.is_final:
-            s.append(' final state (value: %r)\n' % self.fval)
+            s.append(' final state\n')
         else:
             s.append('\n')
         for (sym, next_state) in self.transitions.items():
@@ -41,9 +40,9 @@ class DFA(object):
         self.states = set()
         self.statenum_map = {}
 
-    def add_state(self, statenum, start=False, final=False, value=None):
+    def add_state(self, statenum, start=False, final=False):
         """Add a new state to the DFA and return it"""
-        new_state = State(statenum, start, final, value)
+        new_state = State(statenum, start, final)
         self.states.add(new_state)
         self.statenum_map[statenum] = new_state
 
@@ -120,7 +119,7 @@ class Trie(DFA):
         DFA.__init__(self)
         self.statenum = 0
 
-    def add_string(self, s, val=None):
+    def add_string(self, s):
         """Add a new string to the Trie"""
         # Create start state if necessary
         if self.start_state is None:
@@ -148,7 +147,6 @@ class Trie(DFA):
 
         # State for last symbol is final
         curr.is_final = True
-        curr.fval = val
 
     def get_language(self):
         """Return a list of strings accepted by this trie"""

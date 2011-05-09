@@ -12,7 +12,7 @@
 #define I_HAVE_A_VERY_GOOD_REASON_TO_INCLUDE_TLD_TAB_H
 #include "tld_tab.h"
 
-static bool check_tld(const unsigned char *tld, bool forMail)
+static bool check_tld(const unsigned char *tld)
 {
     int token;
     int statenum = 0;
@@ -27,7 +27,7 @@ static bool check_tld(const unsigned char *tld, bool forMail)
             return false;
         tld++;
     }
-    return forMail ? (tld_dfa[statenum].flags & ACCEPT_MAIL) == ACCEPT_MAIL : (tld_dfa[statenum].flags & ACCEPT_HOST) == ACCEPT_HOST;
+    return tld_dfa[statenum].final;
 }
 
 const char *testdoms[] = {
@@ -48,11 +48,10 @@ const char *testdoms[] = {
 int main(int argc, char **argv)
 {
     const char *dom = *testdoms;
-    const char **tdptr = testdoms;
+    const char **tdptr = testdoms + 1;
     while (dom)
     {
-        printf("%s (mail): %d\n", dom, check_tld(dom, true));
-        printf("%s (nomail): %d\n", dom, check_tld(dom, false));
+        printf("%s: %d\n", dom, check_tld(dom));
         dom = *(tdptr++);
     }
     exit(EXIT_SUCCESS);
