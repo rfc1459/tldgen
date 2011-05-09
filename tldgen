@@ -96,17 +96,6 @@ def generate_dfa(tlds):
         dfa.add_string(tld)
     return dfa
 
-def generate_token_map(lang):
-    """Generate a token map for given language"""
-    tmap = {}
-    tidx = 0
-    for s in lang:
-        for c in s:
-            if c not in tmap:
-                tmap[c] = (c, tidx, 'TLD_TOK_%02d' % tidx)
-                tidx += 1
-    return sorted(tmap.values(), lambda x, y: cmp(x[1], y[1]))
-
 def generate_state(token_map, state):
     # Encode state flags
     template_data = {}
@@ -114,7 +103,7 @@ def generate_state(token_map, state):
     # Encode transitions list - start with all transitions being non-valid
     trans_list = [-1] * len(token_map)
     for (sym, next_state) in state.transitions.items():
-        tridx = token_map[sym][0]
+        tridx = token_map[sym].index
         trans_list[tridx] = next_state.statenum
     template_data['trans_tbl'] = '{%s}' % (','.join(['%d' % t for t in trans_list]))
     return C_DFA_ENTRY_TMPL % template_data
@@ -122,19 +111,19 @@ def generate_state(token_map, state):
 def build_c_header(dfa):
     """Build the header file from a given DFA instance"""
     template_data = {}
-    tmap = generate_token_map(dfa.get_language())
+    tmap = dfa.get_tokens()
     # Create enum string
-    template_data['token_enum'] = ',\n'.join([C_ENUM_TMPL % {'enum_name': token[2], 'enum_value': token[1]} for token in tmap])
+    template_data['token_enum'] = ',\n'.join([C_ENUM_TMPL % {'enum_name': token, 'enum_value': token.index} for token in tmap])
     # Define transition table size
     template_data['trans_tbl_size'] = len(tmap)
     # Assemble token mapping statements
-    template_data['token_map_statements'] = '\n'.join([C_MAP_STATEMENT_TMPL % {'token': token[0], 'enum_name': token[2]} for token in tmap])
+    template_data['token_map_statements'] = '\n'.join([C_MAP_STATEMENT_TMPL % {'token': token.sym, 'enum_name': token} for token in tmap])
     # Now a tough one: generate the DFA state table
     states = [stm[1] for stm in sorted(dfa.statenum_map.items(), lambda x, y: cmp(x[0], y[0]))]
     # Ensure first state has statenum 0 and starting state flag set
     assert states[0].statenum == 0 and states[0].is_start, "Consistency error: first state is not the DFA root state (BUG!)"
-    # Re-arrange token map
-    token_map = dict([(t[0], t[1:]) for t in tmap])
+    # Keep this shit around until generate_state is moved in fsm.DFA
+    token_map = dict([(token.sym, token) for token in tmap])
     # Serialize all states
     template_data['dfa_state_entries'] = ',\n'.join([generate_state(token_map, state) for state in states])
     # Build template

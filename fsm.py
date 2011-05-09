@@ -7,6 +7,18 @@
 
 __all__ = ['DFA', 'Trie', 'State']
 
+class Token(object):
+    def __init__(self, sym, index, prefix='TLD_TOK_'):
+        self.sym = sym
+        self.index = index
+        self.prefix = 'TLD_TOK_'
+
+    def __str__(self):
+        return '%s%d' % (self.prefix, self.index)
+
+    def __repr__(self):
+        return '<Token(%r, %r, %r)>' % (self.sym, self.index, self.prefix)
+
 class State(object):
     """A DFA state"""
     def __init__(self, statenum, is_start=False, is_final=False):
@@ -160,3 +172,15 @@ class Trie(DFA):
                 so_far.pop()
         get_lang([], self.start_state, lang)
         return lang
+
+    def get_tokens(self):
+        """Return a token map for the language accepted by this trie"""
+        lang = self.get_language()
+        tmap = {}
+        tidx = 0
+        for s in lang:
+            for sym in s:
+                if sym not in tmap:
+                    tmap[sym] = Token(sym, tidx)
+                    tidx += 1
+        return sorted(tmap.values(), key=lambda token: token.index)
