@@ -96,16 +96,11 @@ def generate_dfa(tlds):
         dfa.add_string(tld)
     return dfa
 
-def generate_state(token_map, state):
+def fill_state_template(state):
     # Encode state flags
     template_data = {}
-    template_data['final'] = state.is_final
-    # Encode transitions list - start with all transitions being non-valid
-    trans_list = [-1] * len(token_map)
-    for (sym, next_state) in state.transitions.items():
-        tridx = token_map[sym].index
-        trans_list[tridx] = next_state.statenum
-    template_data['trans_tbl'] = '{%s}' % (','.join(['%d' % t for t in trans_list]))
+    template_data['final'] = state[0]
+    template_data['trans_tbl'] = '{%s}' % (','.join(['%d' % t for t in state[1]]))
     return C_DFA_ENTRY_TMPL % template_data
 
 def build_c_header(dfa):
@@ -118,14 +113,10 @@ def build_c_header(dfa):
     template_data['trans_tbl_size'] = len(tmap)
     # Assemble token mapping statements
     template_data['token_map_statements'] = '\n'.join([C_MAP_STATEMENT_TMPL % {'token': token.sym, 'enum_name': token} for token in tmap])
-    # Now a tough one: generate the DFA state table
-    states = [stm[1] for stm in sorted(dfa.statenum_map.items(), lambda x, y: cmp(x[0], y[0]))]
-    # Ensure first state has statenum 0 and starting state flag set
-    assert states[0].statenum == 0 and states[0].is_start, "Consistency error: first state is not the DFA root state (BUG!)"
-    # Keep this shit around until generate_state is moved in fsm.DFA
-    token_map = dict([(token.sym, token) for token in tmap])
+    # Get the state matrix
+    state_matrix = dfa.get_state_matrix()
     # Serialize all states
-    template_data['dfa_state_entries'] = ',\n'.join([generate_state(token_map, state) for state in states])
+    template_data['dfa_state_entries'] = ',\n'.join([fill_state_template(state) for state in state_matrix])
     # Build template
     return C_HDR_TMPL % template_data
 

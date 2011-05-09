@@ -173,8 +173,8 @@ class Trie(DFA):
         get_lang([], self.start_state, lang)
         return lang
 
-    def get_tokens(self):
-        """Return a token map for the language accepted by this trie"""
+    def _get_tokenmap_internal(self):
+        """For internal use only."""
         lang = self.get_language()
         tmap = {}
         tidx = 0
@@ -183,4 +183,22 @@ class Trie(DFA):
                 if sym not in tmap:
                     tmap[sym] = Token(sym, tidx)
                     tidx += 1
-        return sorted(tmap.values(), key=lambda token: token.index)
+        return tmap
+
+    def get_tokens(self):
+        """Return a token map for the language accepted by this trie"""
+        return sorted(self._get_tokenmap_internal().values(), key=lambda token: token.index)
+
+    def get_state_matrix(self):
+        """Get the state matrix for this trie"""
+        states = sorted(self.statenum_map.values(), key=lambda state: state.statenum)
+        assert states[0].statenum == 0 and states[0].is_start, "Consistency error: first state is not the DFA root state (BUG!)"
+        stm = []
+        token_map = self._get_tokenmap_internal()
+        for state in states:
+            tlist = [-1] * len(token_map)
+            for (sym, next_state) in state.transitions.items():
+                tridx = token_map[sym].index
+                tlist[tridx] = next_state.statenum
+            stm.append((state.is_final, tuple(tlist)))
+        return stm
