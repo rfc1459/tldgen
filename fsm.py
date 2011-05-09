@@ -17,9 +17,9 @@ class State(object):
         self.transitions = {}
 
     def add_transition(self, symbol, state):
-        next_states = self.transitions.get(symbol, [])
-        next_states.append(state)
-        self.transitions[symbol] = next_states
+        # A DFA may only have one transition per symbol (silly me...)
+        assert self.transitions.get(symbol) is None, "Internal error: multiple transitions for single symbol"
+        self.transitions[symbol] = state
 
     def __str__(self):
         s = []
@@ -30,9 +30,8 @@ class State(object):
             s.append(' final state (value: %r)\n' % self.fval)
         else:
             s.append('\n')
-        for (sym, next_states) in self.transitions.items():
-            for next_state in next_states:
-                s.append('  %s -> %d\n' % (sym, next_state.statenum))
+        for (sym, next_state) in self.transitions.items():
+            s.append('  %s -> %d\n' % (sym, next_state.statenum))
         return ''.join(s)
 
 class DFA(object):
@@ -65,17 +64,12 @@ class DFA(object):
         except KeyError:
             next_state = self.add_state(next_statenum)
 
-        trans = curr_state.transitions.get(symbol, [])
-        if next_state not in trans:
-            trans.append(next_state)
-        curr_state.transitions[symbol] = trans
+        curr_state.add_transition(symbol, next_state)
 
     def get_next_state(self, curr_state, symbol):
         """Get transition for a symbol"""
         if symbol in curr_state.transitions:
-            next_states = curr_state.transitions[symbol]
-            next_state = next_states[0]
-            return next_state
+            return curr_state.transitions[symbol]
         else:
             return None
 
@@ -106,10 +100,9 @@ class DFA(object):
         def visit_state(current, visited):
             if current not in visited:
                 visited.add(current)
-            for next_states in current.transitions.values():
-                for next_state in next_states:
-                    if next_state not in visited:
-                        visit_state(next_state, visited)
+            for next_state in current.transitions.values():
+                if next_state not in visited:
+                    visit_state(next_state, visited)
 
         visited = set()
         visit_state(self.start_state, visited)
@@ -163,8 +156,7 @@ class Trie(DFA):
         def get_lang(so_far, curr, lang):
             if curr.is_final:
                 lang.append(''.join(so_far))
-            for (sym, next_states) in curr.transitions.items():
-                next_state = next_states[0]
+            for (sym, next_state) in curr.transitions.items():
                 so_far.append(sym)
                 get_lang(so_far, next_state, lang)
                 so_far.pop()

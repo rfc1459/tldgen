@@ -129,10 +129,9 @@ def generate_state(token_map, state):
     template_data['flags'] = state.fval if state.is_final and state.fval is not None else 0
     # Encode transitions list - start with all transitions being non-valid
     trans_list = [-1] * len(token_map)
-    for (sym, next_states) in state.transitions.items():
+    for (sym, next_state) in state.transitions.items():
         tridx = token_map[sym][0]
-        assert len(next_states) == 1, "Internal DFA error: more than one transition for a symbol (BUG!)"
-        trans_list[tridx] = next_states[0].statenum
+        trans_list[tridx] = next_state.statenum
     template_data['trans_tbl'] = '{%s}' % (','.join(['%d' % t for t in trans_list]))
     return C_DFA_ENTRY_TMPL % template_data
 
