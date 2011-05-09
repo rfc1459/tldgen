@@ -36,7 +36,6 @@ C_HDR_TMPL = """/*
 
 #define ACCEPT_MAIL %(accept_mail_val)d
 #define ACCEPT_HOST %(accept_host_val)d
-#define ACCEPT_ALL  (ACCEPT_MAIL | ACCEPT_HOST)
 
 /* Token values */
 enum
@@ -72,6 +71,7 @@ static inline int token_value(unsigned char t)
 static dfa_state tld_dfa[] = {
 %(dfa_state_entries)s
 };"""
+
 # Template for token enum entries
 C_ENUM_TMPL = "    %(enum_name)s = %(enum_value)d"
 
@@ -259,8 +259,6 @@ def generate_token_map(lang):
     return sorted(tmap.values(), lambda x, y: cmp(x[1], y[1]))
 
 def generate_state(token_map, state):
-    if (state.statenum == 0) ^ (state.is_start):
-        raise Exception("Consistency error: invalid combination of state number and start state flag")
     # Encode state flags
     template_data = {}
     template_data['flags'] = state.fval if state.is_final and state.fval is not None else 0
@@ -268,7 +266,7 @@ def generate_state(token_map, state):
     trans_list = [-1] * len(token_map)
     for (sym, next_states) in state.transitions.items():
         tridx = token_map[sym][0]
-        assert len(next_states) == 1, "Internal DFA error"
+        assert len(next_states) == 1, "Internal DFA error: more than one transition for a symbol (BUG!)"
         trans_list[tridx] = next_states[0].statenum
     template_data['trans_tbl'] = '{%s}' % (','.join(['%d' % t for t in trans_list]))
     return C_DFA_ENTRY_TMPL % template_data
@@ -288,8 +286,8 @@ def build_c_header(dfa):
     template_data['token_map_statements'] = '\n'.join([C_MAP_STATEMENT_TMPL % {'token': token[0], 'enum_name': token[2]} for token in tmap])
     # Now a tough one: generate the DFA state table
     states = [stm[1] for stm in sorted(dfa.statenum_map.items(), lambda x, y: cmp(x[0], y[0]))]
-    # Ensure statenum 0 is starting state
-    assert states[0].statenum == 0 and states[0].is_start
+    # Ensure first state has statenum 0 and starting state flag set
+    assert states[0].statenum == 0 and states[0].is_start, "Consistency error: first state is not the DFA root state (BUG!)"
     # Re-arrange token map
     token_map = dict([(t[0], t[1:]) for t in tmap])
     # Serialize all states

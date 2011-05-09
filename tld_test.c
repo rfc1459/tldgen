@@ -3,7 +3,7 @@
  *
  * This program is free but copyrighted software; see COPYING for details.
  *
- * tld_torture_test.c - Tests for tld_tab.h
+ * tld_test.c - Tests for tld_tab.h
  */
 
 #include <stdio.h>
