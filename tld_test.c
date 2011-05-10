@@ -12,24 +12,6 @@
 #define I_HAVE_A_VERY_GOOD_REASON_TO_INCLUDE_TLD_TAB_H
 #include "tld_tab.h"
 
-static bool check_tld(const unsigned char *tld)
-{
-    int token;
-    int statenum = 0;
-    while (*tld)
-    {
-        token = token_value(*tld);
-        if (token == TLD_TOK_INVALID)
-            return false;
-        /* Get next state */
-        statenum = tld_dfa[statenum].transitions[token];
-        if (statenum == -1)
-            return false;
-        tld++;
-    }
-    return tld_dfa[statenum].final;
-}
-
 const char *testdoms[] = {
     "it",
     "com",

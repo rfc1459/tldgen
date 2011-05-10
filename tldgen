@@ -25,11 +25,11 @@ C_HDR_TMPL = """/*
 #endif /* I_HAVE_A_VERY_GOOD_REASON_TO_INCLUDE_TLD_TAB_H */
 
 /* Token values */
-enum
+typedef enum
 {
     TLD_TOK_INVALID = -1,
 %(token_enum)s
-};
+} tld_token_t;
 
 #define TRANS_TBL_SIZE %(trans_tbl_size)d
 
@@ -44,7 +44,7 @@ typedef struct _dfa_state
 } dfa_state;
 
 /* Mapping function from character to token */
-static inline int token_value(unsigned char t)
+static inline tld_token_t dfa_token_value(unsigned char t)
 {
     switch (t)
     {
@@ -54,10 +54,32 @@ static inline int token_value(unsigned char t)
     }
 }
 
-/* The state array itself (YIKES!) */
+/* DFA state matrix */
 static dfa_state tld_dfa[] = {
 %(dfa_state_entries)s
-};"""
+};
+
+#define DFA_START_STATE     %(dfa_start_state_num)d
+#define DFA_ILLEGAL_STATE   %(dfa_illegal_state_num)d
+
+/* Verify if given string is accepted by this DFA */
+static char check_tld(const unsigned char *s)
+{
+    tld_token_t token;
+    short state = DFA_START_STATE;
+    while (*s)
+    {
+        token = dfa_token_value(*s);
+        if (token == TLD_TOK_INVALID || token >= TRANS_TBL_SIZE)
+            return 0;
+        /* Get next state */
+        state = tld_dfa[state].transitions[token];
+        if (state == DFA_ILLEGAL_STATE)
+            return 0;
+        s++;
+    }
+    return tld_dfa[state].final;
+}"""
 
 # Template for token enum entries
 C_ENUM_TMPL = "    %(enum_name)s = %(enum_value)d"
@@ -116,6 +138,8 @@ def build_c_header(dfa):
     template_data['token_map_statements'] = '\n'.join([C_MAP_STATEMENT_TMPL % {'token': token.sym, 'enum_name': token} for token in tmap])
     # Get the state matrix
     state_matrix = dfa.get_state_matrix()
+    template_data['dfa_start_state_num'] = 0
+    template_data['dfa_illegal_state_num'] = -1
     # Serialize all states
     template_data['dfa_state_entries'] = ',\n'.join([fill_state_template(state) for state in state_matrix])
     # Build template
