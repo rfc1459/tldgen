@@ -24,12 +24,10 @@ C_HDR_TMPL = """/*
 #error "*NEVER* *EVER* include this file unless you know what you're doing"
 #endif /* I_HAVE_A_VERY_GOOD_REASON_TO_INCLUDE_TLD_TAB_H */
 
-/* Token values */
-typedef enum
-{
-    TLD_TOK_INVALID = -1,
-%(token_enum)s
-} tld_token_t;
+/* Token map */
+static uint8_t dfa_token_map[] = {
+    %(token_map)s
+};
 
 #define TRANS_TBL_SIZE %(trans_tbl_size)d
 
@@ -42,17 +40,6 @@ typedef struct _dfa_state
      %(state_index_type)s transitions[TRANS_TBL_SIZE];
 } dfa_state;
 
-/* Mapping function from character to token */
-static inline tld_token_t dfa_token_value(unsigned char t)
-{
-    switch (t)
-    {
-%(token_map_statements)s
-    default:
-        return TLD_TOK_INVALID;
-    }
-}
-
 /* DFA state matrix */
 static dfa_state tld_dfa[] = {
 %(dfa_state_entries)s
@@ -64,12 +51,12 @@ static dfa_state tld_dfa[] = {
 /* Verify if given string is accepted by this DFA */
 static char check_tld(const unsigned char *s)
 {
-    tld_token_t token;
+    uint8_t token;
     %(state_index_type)s state = DFA_START_STATE;
     while (*s)
     {
-        token = dfa_token_value(*s);
-        if (token == TLD_TOK_INVALID || token >= TRANS_TBL_SIZE)
+        token = dfa_token_map[*s];
+        if (token >= TRANS_TBL_SIZE)
             return 0;
         /* Get next state */
         state = tld_dfa[state].transitions[token];
@@ -137,16 +124,26 @@ def get_state_index_type(stm_len):
     else:
         raise Exception("You're kidding me, right?")
 
+def generate_token_map(tokens):
+    from math import log10, ceil
+    # Initialize the map
+    tmap = [len(tokens)] * 256
+    for token in tokens:
+        tmap[ord(token.sym)] = token.index
+    tmapstr = []
+    # Determine padding
+    padding = int(ceil(log10(len(tokens))))
+    # Break the token map into a 16x16 matrix
+    return ',\n    '.join([', '.join(['%*s' % (padding, index) for index in tmap[i:i+16]]) for i in xrange(0, 256, 16)])
+
 def build_c_header(dfa):
     """Build the header file from a given DFA instance"""
     template_data = {}
-    tmap = dfa.get_tokens()
-    # Create enum string
-    template_data['token_enum'] = ',\n'.join([C_ENUM_TMPL % {'enum_name': token, 'enum_value': token.index} for token in tmap])
+    tokens = dfa.get_tokens()
+    # Create token map
+    template_data['token_map'] = generate_token_map(tokens)
     # Define transition table size
-    template_data['trans_tbl_size'] = len(tmap)
-    # Assemble token mapping statements
-    template_data['token_map_statements'] = '\n'.join([C_MAP_STATEMENT_TMPL % {'token': token.sym, 'enum_name': token} for token in tmap])
+    template_data['trans_tbl_size'] = len(tokens)
     # Get the state matrix
     (state_matrix, illegal_state) = dfa.get_state_matrix()
     # Define special states

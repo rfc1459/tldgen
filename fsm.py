@@ -11,16 +11,12 @@ class AlreadyFinalizedError(Exception):
     pass
 
 class Token(object):
-    def __init__(self, sym, index, prefix='TLD_TOK_'):
+    def __init__(self, sym, index):
         self.sym = sym
         self.index = index
-        self.prefix = prefix
-
-    def __str__(self):
-        return '%s%d' % (self.prefix, self.index)
 
     def __repr__(self):
-        return '<Token(%r, %r, %r)>' % (self.sym, self.index, self.prefix)
+        return '<Token(%r, %r)>' % (self.sym, self.index)
 
 class State(object):
     """A DFA state"""
