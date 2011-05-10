@@ -41,7 +41,10 @@ class State(object):
         else:
             s.append('\n')
         for (sym, next_state) in self.transitions.items():
-            s.append('  %s -> %d\n' % (sym, next_state.statenum))
+            if sym == '\x00':
+                s.append('  NULL -> ACCEPT\n')
+            else:
+                s.append('  %s -> %d\n' % (sym, next_state.statenum))
         return ''.join(s)
 
     def __repr__(self):
@@ -86,16 +89,6 @@ class DFA(object):
         else:
             return None
 
-    def test_string(self, s):
-        """Test if given string is accepted by this DFA"""
-        curr = self.start_state
-        for sym in s:
-            curr = self.get_next_state(curr, sym)
-            if curr is None:
-                return False
-
-        return curr.is_final
-
     def is_valid(self):
         """Validate this DFA.
         Requirements:
@@ -132,83 +125,45 @@ class Trie(DFA):
     def __init__(self):
         DFA.__init__(self)
         self.statenum = 0
-        self.__finalized = False
 
     def add_string(self, s):
         """Add a new string to the Trie"""
-        if self.__finalized:
-            raise AlreadyFinalizedError()
         # Create start state if necessary
         if self.start_state is None:
             self.add_state(self.statenum, start=True)
+            self.statenum += 1
+            # Final state
+            self.final_state = self.add_state(self.statenum, final=True)
             self.statenum += 1
 
         # Find the last state for a prefix of the string
         curr = self.start_state
         i = 0
         while i < len(s):
-            next_state = self.get_next_state(curr, s[i])
+            sym = s[i]
+            next_state = self.get_next_state(curr, sym)
             if next_state is None:
                 break
             else:
                 i += 1
+                if next_state is self.final_state:
+                    # We have to split this node
+                    next_state = self.add_state(self.statenum)
+                    self.statenum += 1
+                    self.add_transition(next_state.statenum, self.final_state.statenum, '\x00')
+                    curr.transitions[sym] = next_state
                 curr = next_state
 
         # Create new states for remaining characters
-        for j in xrange(i, len(s)):
+        for j in xrange(i, len(s) - 1):
             sym = s[j]
             new_state = self.add_state(self.statenum)
             self.statenum += 1
             self.add_transition(curr.statenum, new_state.statenum, sym)
             curr = new_state
 
-        # State for last symbol is final
-        curr.is_final = True
-
-    def __finalize_visit_fn(self, current, visited, dangling):
-        """Visit function for state optimization"""
-        if current not in visited:
-            visited.add(current)
-            for (sym, state) in current.transitions.items():
-                if state in visited:
-                    continue
-                elif state.is_final and len(state.transitions) == 0:
-                    dangling.add(state)
-                    visited.add(state)
-                    current.transitions[sym] = self.__final_state
-                else:
-                    self.__finalize_visit_fn(state, visited, dangling)
-
-    def __renumber_visit_fn(self, current, visited):
-        if current not in visited:
-            current.statenum = self.statenum
-            self.statenum_map[self.statenum] = current
-            self.statenum += 1
-            visited.add(current)
-        for next_state in current.transitions.values():
-            if next_state not in visited:
-                self.__renumber_visit_fn(next_state, visited)
-
-    def finalize(self):
-        """Coalesce all final states without into a single one and renumber all states"""
-        if self.__finalized:
-            return
-        assert self.is_valid(), "Internal error: Trie.finalized cannot be called on an invalid DFA"
-        # Synthesize final state
-        self.__final_state = self.add_state(self.statenum, final=True)
-        # Recursively visit all states, replace final states without outgoing transitions with
-        # synthetic final state and collect them in a set
-        dangling = set()
-        self.__finalize_visit_fn(self.start_state, set([self.__final_state]), dangling)
-        # Remove dangling states from state set
-        self.states.difference_update(dangling)
-        # Reverify validity
-        assert self.is_valid(), "Internal error: optimized Trie has unreachable states"
-        # Renumber all states
-        self.statenum = 0
-        self.statenum_map = {}
-        self.__renumber_visit_fn(self.start_state, set())
-        self.__finalized = True
+        # Last symbol goes straight to final_state
+        self.add_transition(curr.statenum, self.final_state.statenum, s[-1])
 
     def get_language(self):
         """Return a list of strings accepted by this trie"""
@@ -217,17 +172,20 @@ class Trie(DFA):
             if curr.is_final:
                 lang.append(''.join(so_far))
             for (sym, next_state) in curr.transitions.items():
-                so_far.append(sym)
-                get_lang(so_far, next_state, lang)
-                so_far.pop()
+                if sym != '\x00':
+                    so_far.append(sym)
+                    get_lang(so_far, next_state, lang)
+                    so_far.pop()
+                else:
+                    lang.append(''.join(so_far))
         get_lang([], self.start_state, lang)
         return lang
 
     def _get_tokenmap_internal(self):
         """For internal use only."""
         lang = self.get_language()
-        tmap = {}
-        tidx = 0
+        tmap = {'\x00': Token('\x00', 0)}
+        tidx = 1
         for s in lang:
             for sym in s:
                 if sym not in tmap:
@@ -242,7 +200,6 @@ class Trie(DFA):
     def get_state_matrix(self):
         """Get the state matrix for this trie"""
         states = sorted(self.statenum_map.values(), key=lambda state: state.statenum)
-        assert states[0].statenum == 0 and states[0].is_start, "Consistency error: first state is not the DFA root state (BUG!)"
         stm = []
         illegal_state = self.statenum
         token_map = self._get_tokenmap_internal()
@@ -252,4 +209,4 @@ class Trie(DFA):
                 tridx = token_map[sym].index
                 tlist[tridx] = next_state.statenum
             stm.append((state.is_final, tuple(tlist)))
-        return (stm, illegal_state)
+        return (stm, self.start_state.statenum, self.final_state.statenum, illegal_state)

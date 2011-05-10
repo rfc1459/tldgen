@@ -17,6 +17,8 @@ const char *testdoms[] = {
     "com",
     "org",
     "eu",
+    "ar",
+    "aer",
     "arpa",
     "fw",
     "lan",
