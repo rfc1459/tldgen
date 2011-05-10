@@ -36,11 +36,10 @@ typedef enum
 /* DFA state */
 typedef struct _dfa_state
 {
-    /* State number is implicitly defined by order in state array.
-     * Also, initial state is always state 0.
-     */
-     unsigned final:1;                      /* Is this state final? */
-     short transitions[TRANS_TBL_SIZE];     /* Transition table (indexed by token) */
+    /* Is this state final? */
+     unsigned final:1;
+     /* Transition table (indexed by token) */
+     %(state_index_type)s transitions[TRANS_TBL_SIZE];
 } dfa_state;
 
 /* Mapping function from character to token */
@@ -66,7 +65,7 @@ static dfa_state tld_dfa[] = {
 static char check_tld(const unsigned char *s)
 {
     tld_token_t token;
-    short state = DFA_START_STATE;
+    %(state_index_type)s state = DFA_START_STATE;
     while (*s)
     {
         token = dfa_token_value(*s);
@@ -126,6 +125,18 @@ def fill_state_template(state):
     template_data['trans_tbl'] = '{%s}' % (','.join(['%d' % t for t in state[1]]))
     return C_DFA_ENTRY_TMPL % template_data
 
+def get_state_index_type(stm_len):
+    """Return a C integer type suitable for state index representation"""
+    if stm_len <= 0xff:
+        return "uint8_t"
+    elif stm_len <= 0xffff:
+        return "uint16_t"
+    elif stm_len <= 0xffffffff:
+        print >>sys.stderr, "DFA has more than 65535 states, you should really consider using an hashtable to cut down memory usage"
+        return "uint32_t"
+    else:
+        raise Exception("You're kidding me, right?")
+
 def build_c_header(dfa):
     """Build the header file from a given DFA instance"""
     template_data = {}
@@ -137,9 +148,12 @@ def build_c_header(dfa):
     # Assemble token mapping statements
     template_data['token_map_statements'] = '\n'.join([C_MAP_STATEMENT_TMPL % {'token': token.sym, 'enum_name': token} for token in tmap])
     # Get the state matrix
-    state_matrix = dfa.get_state_matrix()
+    (state_matrix, illegal_state) = dfa.get_state_matrix()
+    # Define special states
     template_data['dfa_start_state_num'] = 0
-    template_data['dfa_illegal_state_num'] = -1
+    template_data['dfa_illegal_state_num'] = illegal_state
+    # Get appropriate storage class for state index
+    template_data['state_index_type'] = get_state_index_type(len(state_matrix))
     # Serialize all states
     template_data['dfa_state_entries'] = ',\n'.join([fill_state_template(state) for state in state_matrix])
     # Build template

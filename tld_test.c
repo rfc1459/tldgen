@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <stdint.h>
 #define I_HAVE_A_VERY_GOOD_REASON_TO_INCLUDE_TLD_TAB_H
 #include "tld_tab.h"
 

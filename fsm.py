@@ -248,11 +248,12 @@ class Trie(DFA):
         states = sorted(self.statenum_map.values(), key=lambda state: state.statenum)
         assert states[0].statenum == 0 and states[0].is_start, "Consistency error: first state is not the DFA root state (BUG!)"
         stm = []
+        illegal_state = self.statenum
         token_map = self._get_tokenmap_internal()
         for state in states:
-            tlist = [-1] * len(token_map)
+            tlist = [illegal_state] * len(token_map)
             for (sym, next_state) in state.transitions.items():
                 tridx = token_map[sym].index
                 tlist[tridx] = next_state.statenum
             stm.append((state.is_final, tuple(tlist)))
-        return stm
+        return (stm, illegal_state)
