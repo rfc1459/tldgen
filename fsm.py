@@ -7,9 +7,6 @@
 
 __all__ = ['DFA', 'Trie', 'State']
 
-class AlreadyFinalizedError(Exception):
-    pass
-
 class Token(object):
     def __init__(self, sym, index):
         self.sym = sym
